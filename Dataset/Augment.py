@@ -46,8 +46,8 @@ def mirror(image, boxes):
 		x0_m=w-x1
 		x1_m=w-x0
 
-		return image, tf.stack([x0_m,y0,x1_m,y1], axis=1)
-			
+		return tf.tuple([image, tf.stack([x0_m,y0,x1_m,y1], axis=1)])
+
 	uniform_random = tf.random_uniform([], 0, 1.0)
 	return tf.cond(uniform_random < 0.5, lambda: tf.tuple([image, boxes]), lambda: doMirror(image, boxes))
 

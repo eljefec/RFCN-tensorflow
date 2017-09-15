@@ -14,7 +14,7 @@
 #
 # ==============================================================================
 
-import tensorflow as tf 
+import tensorflow as tf
 
 def gather(tensors, indices):
     with tf.name_scope("multiGather"):
@@ -23,11 +23,17 @@ def gather(tensors, indices):
             res.append(tf.gather_nd(a, indices))
         return res
 
+def top_k_unpack(t, k, sorted):
+    with tf.name_scope("top_k_unpack"):
+        topk = tf.nn.top_k(t, k=k, sorted=sorted)
+        return tf.tuple([topk.values, topk.indices])
+
 def gatherTopK(t, k, others=[], sorted=False):
     res=[]
     with tf.name_scope("gather_top_k"):
         isMoreThanK = tf.shape(t)[-1]>k
-        values, indices = tf.cond(isMoreThanK, lambda: tf.nn.top_k(t, k=k, sorted=sorted), lambda: tf.tuple([t, tf.zeros((0,1), tf.int32)]))
+
+        values, indices = tf.cond(isMoreThanK, lambda: top_k_unpack(t, k, sorted), lambda: tf.tuple([t, tf.zeros((0,1), tf.int32)]))
         indices = tf.reshape(indices, [-1,1])
         res.append(values)
 
