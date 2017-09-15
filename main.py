@@ -24,7 +24,8 @@ import os
 parser = StorableArgparse(description='RFCN trainer.')
 parser.add_argument('-learningRate', type=float, default=0.0001, help='Learning rate')
 parser.add_argument('-adamEps', type=float, default=1e-8, help='Adam epsilon')
-parser.add_argument('-dataset', type=str, default="/data/Datasets/COCO", help="Path to COCO dataset")
+parser.add_argument('-dataset', type=str, default="/home/eljefec/data/nexet/train", help="Path to Nexet dataset")
+parser.add_argument('-annotation', type=str, default="/home/eljefec/data/nexet/train/train_boxes.simple.csv" help="Path to annotation csv")
 parser.add_argument('-name', type=str, default="save", help="Directory to save checkpoints")
 parser.add_argument('-saveInterval', type=int, default=10000, help='Save model for this amount of iterations')
 parser.add_argument('-reportInterval', type=int, default=30, help='Repeat after this amount of iterations')
@@ -81,6 +82,7 @@ globalStepInc=tf.assign_add(globalStep,1)
 Model.download()
 
 dataset = BoxLoader()
+dataset.add(NexetDataset(opt.dataset, randomZoom=opt.randZoom==1))
 dataset.add(CocoDataset(opt.dataset, randomZoom=opt.randZoom==1))
 if opt.mergeValidationSet==1:
 	dataset.add(CocoDataset(opt.dataset, set="val"))
@@ -167,7 +169,7 @@ with tf.Session(config=tf.ConfigProto(intra_op_parallelism_threads=8)) as sess:
 				print("Done.")
 				sys.exit(0)
 
-			
+
 		i, loss=res["train"]
 
 		lossSum+=loss

@@ -39,14 +39,14 @@ class BoxLoader:
 			self.image = tf.placeholder(dtype=tf.float32, shape=[None, None, 3], name="image")
 			self.boxes = tf.placeholder(dtype=tf.float32, shape=[None,4], name="boxes")
 			self.classes = tf.placeholder(dtype=tf.uint8, shape=[None], name="classes")
-			
+
 			self.enqueueOp = self.queue.enqueue([self.image, self.boxes, self.classes])
 
 		self.sources=sources[:]
-	
+
 	def categoryCount(self):
-		return 80
-	
+		return self.sources[0].classCount()
+
 	def threadFn(self, tid, sess):
 		if tid==0:
 			self.init()

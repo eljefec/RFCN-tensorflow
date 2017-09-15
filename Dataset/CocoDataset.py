@@ -43,8 +43,10 @@ class CocoDataset:
 			self.toCocoCategory.append(cats[i]["id"])
 
 		print("Loaded "+str(len(self.images))+" COCO images")
-	
-  
+
+        def classCount(self):
+            return 80
+
 	def getCaptions(self, categories):
 		if categories is None:
 			return None
@@ -63,9 +65,9 @@ class CocoDataset:
 			#imgId=self.images[1]
 			#imgId=self.images[3456]
 			imgId=self.images[random.randint(0, len(self.images)-1)]
-	  
+
 			instances = self.coco.loadAnns(self.coco.getAnnIds(imgId, iscrowd=False))
-		
+
 			#Ignore crowd images
 			crowd = self.coco.loadAnns(self.coco.getAnnIds(imgId, iscrowd=True))
 			if len(crowd)>0:
@@ -91,7 +93,7 @@ class CocoDataset:
 						"w":int(i["bbox"][2]),
 						"h":int(i["bbox"][3])
 					} for i in instances]
-	
+
 			if self.randomZoom:
 				img, iBoxes = BoxAwareRandZoom.randZoom(img, iBoxes, keepOriginalRatio=False, keepOriginalSize=False, keepBoxes=True)
 
