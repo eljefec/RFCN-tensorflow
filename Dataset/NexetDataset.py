@@ -1,9 +1,11 @@
 import random
+import os
 import numpy as np
 import cv2
 import tensorflow as tf
 from . import BoxAwareRandZoom
 import simple_parser
+import explore_nexet
 
 class NexetDataset:
     def __init__(self, path, annotation_csv, set="train", normalizeSize=True, randomZoom=True):
@@ -13,14 +15,15 @@ class NexetDataset:
         self.set=set
         self.randomZoom=randomZoom
         self.all_data, self.class_count, self.class_name_mapping, self.class_mapping = None, None, None, None
+        self.dataset = None
 
     def init(self):
-        self.all_data, self.class_count, self.class_name_mapping, self.class_mapping = simple_parser.get_data(self.annotation_csv)
+        self.dataset = explore_nexet.load_nexet(self.annotation_csv)
 
-        print("Loaded "+str(len(self.all_data))+" images")
+        print("Loaded "+str(len(self.dataset.all_data))+" images")
 
     def classCount(self):
-        return self.class_count
+        return len(self.dataset.classes_count)
 
     def getCaptions(self, categories):
         if categories is None:
@@ -31,7 +34,7 @@ class NexetDataset:
             categories = categories.tolist()
 
         for c in categories:
-            res.append(self.class_mapping[c])
+            res.append(self.dataset.class_mapping[c])
 
         return res
 
@@ -39,7 +42,8 @@ class NexetDataset:
         while True:
             #imgId=self.images[1]
             #imgId=self.images[3456]
-            ex = self.all_data[random.randint(0, len(self.all_data)-1)]
+            ds = self.dataset
+            ex = ds.all_data[random.randint(0, len(ds.all_data)-1)]
 
             imgFile = os.path.join(self.path, ex.filename)
             img = cv2.imread(imgFile)
@@ -54,6 +58,12 @@ class NexetDataset:
 
             if len(ex.bboxes) <= 0:
                 continue
+
+            iBoxes=[{"x":b.x1,
+                     "y":b.y1,
+                     "w":b.w,
+                     "h":b.h
+                    } for b in ex.bboxes]
 
             if self.randomZoom:
                 img, iBoxes = BoxAwareRandZoom.randZoom(img, iBoxes, keepOriginalRatio=False, keepOriginalSize=False, keepBoxes=True)
@@ -79,8 +89,8 @@ class NexetDataset:
 
             boxes=[]
             categories=[]
-            for box in ex.bboxes:
-                x1,y1,w,h = box.x, box.y, box.w, box.h
+            for i in range(len(ex.bboxes)):
+                x1,y1,w,h = iBoxes[i]["x"],iBoxes[i]["y"],iBoxes[i]["w"],iBoxes[i]["h"]
                 newBox=[int(x1*sizeMul) - padLeft, int(y1*sizeMul) - padTop, int((x1+w)*sizeMul) - padLeft, int((y1+h)*sizeMul) - padTop]
                 newBox[0] = max(min(newBox[0], img.shape[1]),0)
                 newBox[1] = max(min(newBox[1], img.shape[0]),0)
@@ -90,7 +100,7 @@ class NexetDataset:
                 # CocoDataset filtered out boxes smaller than 16x16.
                 # if (newBox[2]-newBox[0]) >= 16 and (newBox[3]-newBox[1]) >= 16:
                 boxes.append(newBox)
-                categories.append(self.class_name_mapping[box.class_name])
+                categories.append(ds.class_name_mapping[ex.bboxes[i].class_name])
 
             if len(boxes)==0:
                 print("Warning: No boxes on image. Skipping.")
@@ -103,4 +113,4 @@ class NexetDataset:
             return img, boxes, categories
 
     def count(self):
-        return len(self.all_data)
+        return len(self.dataset.all_data)
