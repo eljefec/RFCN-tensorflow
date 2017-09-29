@@ -21,6 +21,8 @@ import os
 import cv2
 import numpy as np
 import tensorflow as tf
+from Dataset.BoxLoader import BoxLoader
+from Dataset.NexetDataset import NexetDataset
 from BoxInceptionResnet import BoxInceptionResnet
 from Visualize import Visualize
 from Utils import CheckpointLoader
@@ -34,21 +36,22 @@ parser.add_argument('-o', type=str, default="", help='Write output here.')
 parser.add_argument('-p', type=int, default=1, help='Show preview')
 parser.add_argument('-threshold', type=float, default=0.5, help='Detection threshold')
 parser.add_argument('-delay', type=int, default=-1, help='Delay between frames in visualization. -1 for automatic, 0 for wait for keypress.')
+parser.add_argument('-dataset', type=str, default="/home/eljefec/data/nexet/train", help="Path to Nexet dataset")
+parser.add_argument('-annotation', type=str, default="/home/eljefec/data/nexet/train_boxes.simple.csv", help="Path to annotation csv")
 
 opt=parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
 
-categories = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter',
- 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase',
- 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass',
- 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
- 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
- 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+dataset = BoxLoader()
+dataset.add(NexetDataset(opt.dataset, opt.annotation))
+print("Number of categories: "+str(dataset.categoryCount()))
+print(dataset.getCaptionMap())
+categories = dataset.getCaptionMap()
 
-palette = Visualize.Palette(len(categories))
+palette = Visualize.Palette(dataset.categoryCount())
 
 image = tf.placeholder(tf.float32, [None, None, None, 3])
-net = BoxInceptionResnet(image, len(categories), name="boxnet")
+net = BoxInceptionResnet(image, dataset.categoryCount(), name="boxnet")
 
 boxes, scores, classes = net.getBoxes(scoreThreshold=opt.threshold)
 
@@ -77,7 +80,7 @@ def preprocessInput(img):
 	return img
 
 with tf.Session() as sess:
-	if not CheckpointLoader.loadCheckpoint(sess, None, opt.n, ignoreVarsInFileNotInSess=True):
+	if not CheckpointLoader.loadCheckpoint(sess, 'save/save', opt.n, ignoreVarsInFileNotInSess=True):
 		print("Failed to load network.")
 		sys.exit(-1)
 
@@ -86,7 +89,7 @@ with tf.Session() as sess:
 		if img is None:
 			break
 
-		img = preprocessInput(img)	
+		img = preprocessInput(img)
 
 		rBoxes, rScores, rClasses = sess.run([boxes, scores, classes], feed_dict={image: np.expand_dims(img, 0)})
 
