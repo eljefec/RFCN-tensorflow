@@ -45,6 +45,17 @@ def main():
 
     test_rfcn(opt)
 
+class Trim:
+    def __init__(self, s, p):
+        self.s = s
+        self.p = p
+
+class ZoomTrim:
+    def __init__(self, zoom):
+        self.zoom = zoom
+        self.height_trim = None
+        self.width_trim = None
+
 def preprocessInput(img):
     def calcPad(size):
         m = size % 32
@@ -55,15 +66,40 @@ def preprocessInput(img):
     zoom = max(640.0 / img.shape[0], 640.0 / img.shape[1])
     img = cv2.resize(img, (int(zoom*img.shape[1]), int(zoom*img.shape[0])))
 
+    zoomtrim = ZoomTrim(zoom)
+
     if img.shape[0] % 32 != 0:
         s,p = calcPad(img.shape[0])
         img = img[p:p+s]
+        zoomtrim.height_trim = Trim(s, p)
 
     if img.shape[1] % 32 != 0:
         s,p = calcPad(img.shape[1])
         img = img[:,p:p+s]
+        zoomtrim.width_trim = Trim(s, p)
 
-    return img
+    return img, zoomtrim
+
+def unprocessBox(zoomtrim, box):
+    if zoomtrim.width_trim:
+        # Add p to each x value
+        box[0] += zoomtrim.width_trim.p
+        box[2] += zoomtrim.width_trim.p
+    if zoomtrim.height_trim:
+        # Add p to each y value
+        box[1] += zoomtrim.height_trim.p
+        box[3] += zoomtrim.height_trim.p
+    # Undo zoom.
+    box /= zoomtrim.zoom
+
+class Box:
+    def __init__(self, class_name, x1, y1, x2, y2, prob):
+        self.class_name = class_name
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+        self.prob = prob
 
 class RFCNTester:
     def __init__(self, save_dir, network_file, bbox_threshold,
@@ -86,12 +122,27 @@ class RFCNTester:
             print("Failed to load network.")
             sys.exit(-1)
 
-    def predict(self, img):
-        img = preprocessInput(img)
+    def predict(self, img, as_boxes = True):
+        img, zoomtrim = preprocessInput(img)
+
+        def clipCoord(xy):
+            return np.minimum(np.maximum(np.array(xy,dtype=np.int32),0),[img.shape[1]-1, img.shape[0]-1]).tolist()
 
         rBoxes, rScores, rClasses = self.sess.run([self.boxes, self.scores, self.classes], feed_dict={self.image: np.expand_dims(img, 0)})
 
-        return rBoxes, rScores, rClasses
+        pred_boxes = []
+        for box in range(rBoxes.shape[0]):
+            unprocessBox(zoomtrim, rBoxes[box])
+            topleft = tuple(clipCoord(rBoxes[box][0:2]))
+            bottomright = tuple(clipCoord(rBoxes[box][2:5]))
+            class_name = self.categories[rClasses[box]]
+            prob = rScores[box]
+            pred_boxes.append(Box(class_name, topleft[0], topleft[1], bottomright[0], bottomright[1], prob))
+
+        if as_boxes:
+            return pred_boxes
+        else:
+            return rBoxes, rScores, rClasses
 
 def test_rfcn(opt):
     model = RFCNTester('save/save', opt.n, opt.threshold, opt.dataset, opt.annotation)
@@ -106,9 +157,7 @@ def test_rfcn(opt):
         if img is None:
             break
 
-        img = preprocessInput(img)
-
-        rBoxes, rScores, rClasses = model.predict(img)
+        rBoxes, rScores, rClasses = model.predict(img, as_boxes = False)
 
         res = Visualize.drawBoxes(img, rBoxes, rClasses, [model.categories[i] for i in rClasses.tolist()], palette, scores=rScores)
 
