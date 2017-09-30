@@ -114,6 +114,7 @@ class RFCNTester:
         self.image = tf.placeholder(tf.float32, [None, None, None, 3])
         self.net = BoxInceptionResnet(self.image, dataset.categoryCount(), name="boxnet")
 
+        self.bbox_threshold = bbox_threshold
         self.boxes, self.scores, self.classes = self.net.getBoxes(scoreThreshold=bbox_threshold)
 
         self.sess = tf.Session()
@@ -122,7 +123,10 @@ class RFCNTester:
             print("Failed to load network.")
             sys.exit(-1)
 
-    def predict(self, img, as_boxes = True):
+    def predict(self, img, bbox_threshold, as_boxes = True):
+        if bbox_threshold != self.bbox_threshold:
+            raise ValueError('RFCNTester does not support bbox_threshold in the predict function.')
+
         img, zoomtrim = preprocessInput(img)
 
         def clipCoord(xy):
@@ -157,7 +161,7 @@ def test_rfcn(opt):
         if img is None:
             break
 
-        rBoxes, rScores, rClasses = model.predict(img, as_boxes = False)
+        rBoxes, rScores, rClasses = model.predict(img, opt.threshold, as_boxes = False)
 
         res = Visualize.drawBoxes(img, rBoxes, rClasses, [model.categories[i] for i in rClasses.tolist()], palette, scores=rScores)
 
